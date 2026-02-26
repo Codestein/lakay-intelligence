@@ -55,9 +55,7 @@ class TestFraudScorer:
             is_new_device=True,
             is_new_country=True,
         )
-        with patch.object(
-            scorer._feature_computer, "compute", return_value=features
-        ):
+        with patch.object(scorer._feature_computer, "compute", return_value=features):
             result = await scorer.score_transaction(request, mock_session)
 
         assert result.final_score >= ALERT_THRESHOLD
@@ -74,9 +72,7 @@ class TestFraudScorer:
             is_new_device=True,
             is_new_country=True,
         )
-        with patch.object(
-            scorer._feature_computer, "compute", return_value=features
-        ):
+        with patch.object(scorer._feature_computer, "compute", return_value=features):
             result = await scorer.score_transaction(request, mock_session)
 
         # Check alert severity
@@ -89,9 +85,7 @@ class TestFraudScorer:
     async def test_scoring_result_has_features(self, scorer, mock_session):
         request = _make_request()
         features = TransactionFeatures(velocity_count_1h=3)
-        with patch.object(
-            scorer._feature_computer, "compute", return_value=features
-        ):
+        with patch.object(scorer._feature_computer, "compute", return_value=features):
             result = await scorer.score_transaction(request, mock_session)
 
         assert result.features_used is not None

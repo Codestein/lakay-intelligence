@@ -47,9 +47,7 @@ class FeatureComputer:
             unique_devices_7d = await self._unique_device_count(
                 session, base_filter, seven_days_ago, now
             )
-            is_new_device = await self._is_first_occurrence_device(
-                session, base_filter, device_id
-            )
+            is_new_device = await self._is_first_occurrence_device(session, base_filter, device_id)
 
         # Geo uniqueness over 7d
         unique_countries_7d = 0
@@ -111,9 +109,7 @@ class FeatureComputer:
         stmt = select(
             func.count().label("cnt"),
             func.coalesce(
-                func.sum(
-                    RawEvent.payload["payload"]["amount"].astext.cast(Float)
-                ),
+                func.sum(RawEvent.payload["payload"]["amount"].astext.cast(Float)),
                 0,
             ).label("total"),
         ).where(
@@ -133,9 +129,7 @@ class FeatureComputer:
         end: datetime,
     ) -> int:
         stmt = select(
-            func.count(
-                func.distinct(RawEvent.payload["payload"]["device_id"].astext)
-            )
+            func.count(func.distinct(RawEvent.payload["payload"]["device_id"].astext))
         ).where(
             *base_filter,
             RawEvent.received_at >= start,
@@ -166,11 +160,7 @@ class FeatureComputer:
         end: datetime,
     ) -> int:
         stmt = select(
-            func.count(
-                func.distinct(
-                    RawEvent.payload["payload"]["geo_location"]["country"].astext
-                )
-            )
+            func.count(func.distinct(RawEvent.payload["payload"]["geo_location"]["country"].astext))
         ).where(
             *base_filter,
             RawEvent.received_at >= start,

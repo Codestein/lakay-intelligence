@@ -20,8 +20,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 class FraudRule(ABC):
     @abstractmethod
-    def evaluate(self, amount: float, features: TransactionFeatures) -> RuleResult:
-        ...
+    def evaluate(self, amount: float, features: TransactionFeatures) -> RuleResult: ...
 
 
 class HighAmountRule(FraudRule):

@@ -25,9 +25,7 @@ async def score_fraud(
     session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> dict:
     # Check if already scored
-    stmt = select(FraudScoreDB).where(
-        FraudScoreDB.transaction_id == request.transaction_id
-    )
+    stmt = select(FraudScoreDB).where(FraudScoreDB.transaction_id == request.transaction_id)
     result = await session.execute(stmt)
     existing = result.scalar_one_or_none()
 
@@ -46,9 +44,7 @@ async def score_fraud(
     return {
         "transaction_id": request.transaction_id,
         "score": scoring_result.final_score,
-        "confidence": min(
-            len([r for r in scoring_result.rule_results if r.triggered]) / 5, 1.0
-        ),
+        "confidence": min(len([r for r in scoring_result.rule_results if r.triggered]) / 5, 1.0),
         "risk_factors": [
             r.risk_factor.value
             for r in scoring_result.rule_results
