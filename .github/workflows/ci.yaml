@@ -7,9 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -21,11 +20,33 @@ jobs:
       - name: Install dependencies
         run: pip install ".[dev]"
 
-      - name: Lint with ruff
-        run: ruff check src/ tests/ generators/
+      - name: Lint
+        run: make lint
 
-      - name: Type check with mypy
-        run: mypy src/
+      - name: Format check
+        run: ruff format --check src/ tests/ generators/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lakay-intelligence
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/trebanx-contracts
+          path: trebanx-contracts
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: lakay-intelligence
+        run: pip install ".[dev]"
 
       - name: Run tests
-        run: pytest tests/unit/ -v --cov=src --cov-report=term-missing
+        working-directory: lakay-intelligence
+        run: make test

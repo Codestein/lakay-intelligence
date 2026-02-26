@@ -54,8 +54,10 @@ def seasonal_multiplier(dt: datetime) -> float:
 
 def generate_ip_address() -> str:
     octets = [
-        random.randint(10, 99), random.randint(0, 255),
-        random.randint(0, 255), random.randint(1, 254),
+        random.randint(10, 99),
+        random.randint(0, 255),
+        random.randint(0, 255),
+        random.randint(1, 254),
     ]
     return f"{octets[0]}.{octets[1]}.{octets[2]}.{octets[3]}"
 
