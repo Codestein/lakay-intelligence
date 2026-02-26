@@ -1,5 +1,7 @@
 # Lakay Intelligence
 
+[![CI](https://github.com/Codestein/lakay-intelligence/actions/workflows/ci.yaml/badge.svg)](https://github.com/Codestein/lakay-intelligence/actions/workflows/ci.yaml)
+
 AI/ML intelligence microservice for the **Trebanx** fintech platform, serving the Haitian diaspora with digital sou-sou circles (rotating savings groups) and remittances to Haiti.
 
 **Lakay** means "home" in Haitian Creole. It's the internal intelligence layer — it never interacts with end users directly. It observes, analyzes, and recommends.
