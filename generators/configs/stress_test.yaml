@@ -1,0 +1,24 @@
+# High-volume config for load testing
+num_circles: 1000
+num_users: 5000
+num_senders: 2000
+member_range: [5, 15]
+contribution_range: [25.0, 500.0]
+frequency_weights:
+  weekly: 0.3
+  biweekly: 0.3
+  monthly: 0.4
+transactions_per_user_range: [50, 200]
+sessions_per_user_range: [50, 500]
+remittances_per_sender_range: [10, 50]
+time_span_days: 30
+late_payment_rate: 0.08
+miss_payment_rate: 0.04
+member_drop_rate: 0.02
+circle_failure_rate: 0.03
+collusion_rate: 0.01
+fraud_injection_rate: 0.01
+structuring_injection_rate: 0.005
+velocity_anomaly_rate: 0.01
+anomaly_injection_rate: 0.01
+account_takeover_injection_rate: 0.005

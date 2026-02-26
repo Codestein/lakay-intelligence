@@ -1,0 +1,14 @@
+member_range: [5, 12]
+contribution_range: [50.0, 300.0]
+frequency_weights:
+  weekly: 0.2
+  biweekly: 0.3
+  monthly: 0.5
+late_payment_rate: 0.10
+late_payment_days_mean: 3
+late_payment_days_std: 2
+miss_payment_rate: 0.05
+member_drop_rate: 0.03
+circle_failure_rate: 0.05
+collusion_rate: 0.02
+fraud_injection_rate: 0.02

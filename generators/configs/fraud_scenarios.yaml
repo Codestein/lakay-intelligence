@@ -1,0 +1,21 @@
+# Elevated fraud injection for testing detection
+member_range: [5, 15]
+contribution_range: [25.0, 500.0]
+frequency_weights:
+  weekly: 0.3
+  biweekly: 0.3
+  monthly: 0.4
+late_payment_rate: 0.25
+late_payment_days_mean: 5
+late_payment_days_std: 3
+miss_payment_rate: 0.15
+member_drop_rate: 0.10
+circle_failure_rate: 0.10
+collusion_rate: 0.05
+fraud_injection_rate: 0.10
+num_users: 500
+structuring_injection_rate: 0.05
+velocity_anomaly_rate: 0.08
+anomaly_injection_rate: 0.10
+account_takeover_injection_rate: 0.05
+time_span_days: 60

@@ -1,0 +1,15 @@
+num_users: 500
+transactions_per_user_range: [5, 50]
+amount_distribution:
+  log_normal_mean: 4.5
+  log_normal_std: 1.2
+fraud_injection_rate: 0.03
+structuring_injection_rate: 0.01
+velocity_anomaly_rate: 0.02
+type_weights:
+  circle_contribution: 0.35
+  circle_payout: 0.15
+  remittance: 0.30
+  fee: 0.15
+  refund: 0.05
+time_span_days: 90

@@ -1,0 +1,79 @@
+services:
+  lakay:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      kafka:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file: .env.example
+    environment:
+      CONTRACTS_PATH: /contracts
+    volumes:
+      - ../trebanx-contracts/schemas:/contracts:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    command: >
+      bash -c "
+      /etc/confluent/docker/run &
+      sleep 15 &&
+      kafka-topics --create --if-not-exists --bootstrap-server localhost:29092 --partitions 3 --replication-factor 1 --topic trebanx.circle.events &&
+      kafka-topics --create --if-not-exists --bootstrap-server localhost:29092 --partitions 3 --replication-factor 1 --topic trebanx.transaction.events &&
+      kafka-topics --create --if-not-exists --bootstrap-server localhost:29092 --partitions 3 --replication-factor 1 --topic trebanx.user.events &&
+      kafka-topics --create --if-not-exists --bootstrap-server localhost:29092 --partitions 3 --replication-factor 1 --topic trebanx.remittance.events &&
+      kafka-topics --create --if-not-exists --bootstrap-server localhost:29092 --partitions 3 --replication-factor 1 --topic trebanx.security.events &&
+      wait
+      "
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: lakay
+      POSTGRES_PASSWORD: lakay_dev
+      POSTGRES_DB: lakay
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakay"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

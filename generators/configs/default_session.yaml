@@ -1,0 +1,13 @@
+num_users: 500
+sessions_per_user_range: [10, 100]
+session_duration_distribution:
+  log_normal_mean: 6.0
+  log_normal_std: 1.0
+actions_per_session_distribution:
+  log_normal_mean: 2.0
+  log_normal_std: 0.8
+anomaly_injection_rate: 0.03
+account_takeover_injection_rate: 0.01
+device_diversity: 2
+location_diversity: 3
+time_span_days: 90

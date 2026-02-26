@@ -1,0 +1,18 @@
+num_senders: 300
+remittances_per_sender_range: [1, 12]
+send_amount_distribution:
+  common_amounts: [50, 100, 200, 300, 500]
+  common_amount_probability: 0.6
+  random_mean: 200
+  random_std: 150
+exchange_rate_base: 132.50
+exchange_rate_volatility: 0.02
+delivery_method_weights:
+  mobile_wallet: 0.45
+  bank_deposit: 0.30
+  cash_pickup_agent: 0.25
+success_rate: 0.95
+processing_time_hours_mean: 24
+seasonal_patterns: true
+fraud_injection_rate: 0.02
+time_span_days: 90
