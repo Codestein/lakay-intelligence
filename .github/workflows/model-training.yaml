@@ -1,0 +1,107 @@
+name: Model Training Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/domains/fraud/ml/**'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'train'
+        type: choice
+        options:
+          - train
+          - promote
+
+jobs:
+  train:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'train')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install ".[ml]"
+
+      - name: Download PaySim dataset
+        run: |
+          # In CI, use a cached/small sample dataset for validation
+          # Full training uses the complete PaySim dataset
+          python -c "
+          import pandas as pd
+          import numpy as np
+          np.random.seed(42)
+          n = 10000
+          types = ['CASH_IN', 'CASH_OUT', 'DEBIT', 'PAYMENT', 'TRANSFER']
+          df = pd.DataFrame({
+              'step': np.random.randint(1, 744, n),
+              'type': np.random.choice(types, n),
+              'amount': np.random.lognormal(4.5, 1.2, n),
+              'nameOrig': ['C' + str(i % 500) for i in range(n)],
+              'oldbalanceOrg': np.random.lognormal(7, 2, n),
+              'newbalanceOrig': np.random.lognormal(7, 2, n),
+              'nameDest': ['M' + str(i % 200) for i in range(n)],
+              'oldbalanceDest': np.random.lognormal(7, 2, n),
+              'newbalanceDest': np.random.lognormal(7, 2, n),
+              'isFraud': (np.random.random(n) < 0.012).astype(int),
+              'isFlaggedFraud': np.zeros(n, dtype=int),
+          })
+          df.to_csv('data/paysim_ci.csv', index=False)
+          "
+          mkdir -p data
+
+      - name: Train model
+        run: |
+          python -m src.domains.fraud.ml.train \
+            --dataset data/paysim_ci.csv \
+            --sample-size 10000 \
+            --mlflow-uri ${MLFLOW_TRACKING_URI:-http://localhost:5000}
+
+      - name: Validate staged model
+        run: |
+          python -c "
+          from src.serving.deploy import DeploymentPipeline
+          pipeline = DeploymentPipeline()
+          result = pipeline.validate_model('fraud-detector-v0.1', version='1')
+          print(f'Validation passed: {result.passed}')
+          print(f'Checks: {result.checks}')
+          if not result.passed:
+              raise SystemExit('Model validation failed')
+          "
+
+  promote:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install ".[ml]"
+
+      - name: Promote to Production
+        run: |
+          python -c "
+          from src.serving.deploy import DeploymentPipeline
+          pipeline = DeploymentPipeline()
+          record = pipeline.promote_to_production(
+              'fraud-detector-v0.1',
+              version='latest',
+              triggered_by='ci-workflow',
+          )
+          print(f'Promotion success: {record.success}')
+          if not record.success:
+              raise SystemExit('Promotion failed')
+          "
