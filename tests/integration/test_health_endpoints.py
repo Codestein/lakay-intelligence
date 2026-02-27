@@ -98,19 +98,21 @@ class TestHealthEndpoints:
             app.dependency_overrides.clear()
 
     @pytest.mark.asyncio
-    async def test_behavior_anomaly_stub(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post(
-                "/api/v1/behavior/anomaly",
-                json={
-                    "session_id": "550e8400-e29b-41d4-a716-446655440000",
-                    "user_id": "660e8400-e29b-41d4-a716-446655440001",
-                },
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["is_anomalous"] is False
+    async def test_behavior_profile_endpoint(self):
+        mock_session = _mock_session_with_no_results()
+        app.dependency_overrides[get_session] = override_get_session(mock_session)
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get(
+                    "/api/v1/behavior/users/660e8400-e29b-41d4-a716-446655440001/profile",
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["user_id"] == "660e8400-e29b-41d4-a716-446655440001"
+                assert data["profile"] is None
+        finally:
+            app.dependency_overrides.clear()
 
     @pytest.mark.asyncio
     async def test_compliance_risk_stub(self):
