@@ -1,6 +1,6 @@
 # Load Test Results
 
-Phase 10 -- Task 10.5: Load test results document.
+Phase 10 -- Task 10.2: Load test results document.
 
 **Status:** Template -- populate with actual results after running load tests.
 

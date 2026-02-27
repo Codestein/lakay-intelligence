@@ -1,6 +1,6 @@
 # Security Audit Report
 
-Phase 10 -- Task 10.5: Security audit for Lakay Intelligence.
+Phase 10 -- Task 10.3: Security audit for Lakay Intelligence.
 
 **Audit Date:** _[fill upon completion]_
 **Auditor:** _[fill]_
