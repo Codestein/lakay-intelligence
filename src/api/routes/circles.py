@@ -192,7 +192,7 @@ async def health_summary(
     offset: int = Query(default=0, ge=0),
 ) -> dict:
     """Return health scores for all active circles, sortable and filterable."""
-    # Get latest score per circle using a subquery
+    # Get latest score per circle using a subquery.
     from sqlalchemy import func
 
     latest_subq = (
@@ -204,39 +204,25 @@ async def health_summary(
         .subquery()
     )
 
-    stmt = select(CircleHealthDB).join(
+    base_stmt = select(CircleHealthDB).join(
         latest_subq,
         (CircleHealthDB.circle_id == latest_subq.c.circle_id)
         & (CircleHealthDB.id == latest_subq.c.max_id),
     )
 
     if tier:
-        stmt = stmt.where(CircleHealthDB.health_tier == tier)
+        base_stmt = base_stmt.where(CircleHealthDB.health_tier == tier)
 
     # Sort
     if sort_by == "health_score":
         order_col = CircleHealthDB.health_score
     else:
         order_col = CircleHealthDB.computed_at
-    stmt = stmt.order_by(desc(order_col) if sort_order == "desc" else order_col)
+    stmt = base_stmt.order_by(desc(order_col) if sort_order == "desc" else order_col)
 
-    # Count total
-    from sqlalchemy import func as sqla_func
-
-    count_subq = (
-        select(sqla_func.count())
-        .select_from(
-            select(CircleHealthDB.circle_id)
-            .join(
-                latest_subq,
-                (CircleHealthDB.circle_id == latest_subq.c.circle_id)
-                & (CircleHealthDB.id == latest_subq.c.max_id),
-            )
-        )
-    )
-    if tier:
-        count_subq = count_subq.where(CircleHealthDB.health_tier == tier)
-    count_result = await session.execute(count_subq)
+    # Count total from the already-filtered base query to avoid table leakage in WHERE.
+    count_stmt = select(func.count()).select_from(base_stmt.subquery())
+    count_result = await session.execute(count_stmt)
     total = count_result.scalar_one()
 
     # Paginate
