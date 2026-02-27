@@ -86,8 +86,9 @@ class CircleHealthScorer:
         # Determine confidence based on data availability
         confidence = self._compute_confidence(features)
 
-        # Determine trend
-        trend = self._compute_trend(features)
+        # Determine trend using the freshly computed composite score as current value.
+        # Historical lookbacks still come from feature-store inputs.
+        trend = self._compute_trend(features, composite)
 
         score = CircleHealthScore(
             circle_id=circle_id,
@@ -420,7 +421,11 @@ class CircleHealthScorer:
 
         return round(min(cycle_conf * size_factor, 1.0), 2)
 
-    def _compute_trend(self, features: dict[str, Any]) -> TrendDirection:
+    def _compute_trend(
+        self,
+        features: dict[str, Any],
+        current_score: float | None = None,
+    ) -> TrendDirection:
         """Compute trend from historical scores.
 
         Compares current score against 1-cycle-ago and 3-cycles-ago scores.
@@ -428,7 +433,11 @@ class CircleHealthScorer:
         cfg = self._config.trend
         score_1_cycle_ago = features.get("health_score_1_cycle_ago")
         score_3_cycles_ago = features.get("health_score_3_cycles_ago")
-        current_score = features.get("current_health_score")
+        current_score = (
+            current_score
+            if current_score is not None
+            else features.get("current_health_score")
+        )
 
         if current_score is None or (score_1_cycle_ago is None and score_3_cycles_ago is None):
             return TrendDirection.STABLE
