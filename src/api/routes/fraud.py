@@ -14,6 +14,8 @@ from src.domains.fraud.config import default_config
 from src.domains.fraud.models import FraudScoreRequest
 from src.domains.fraud.rules import ALL_RULES
 from src.domains.fraud.scorer import FraudScorer
+from src.features.definitions.fraud_features import FRAUD_FEATURE_REFS
+from src.features.store import feature_store
 from src.serving.config import default_serving_config
 from src.serving.monitoring import get_model_monitor
 from src.serving.server import get_model_server
@@ -88,35 +90,17 @@ async def score_fraud(
     server = get_model_server()
     if server.is_loaded:
         try:
+            online_features = feature_store.get_online_features(
+                entity_ids={"user_id": [request.user_id]},
+                feature_refs=FRAUD_FEATURE_REFS,
+            )
             features_for_ml = {
-                "amount": request.amount_float,
-                "amount_zscore": 0.0,
-                "hour_of_day": (request.initiated_at.hour if request.initiated_at else 0),
-                "day_of_week": (request.initiated_at.weekday() if request.initiated_at else 0),
-                "tx_type_encoded": 0,
-                "balance_delta_sender": 0.0,
-                "balance_delta_receiver": 0.0,
-                "velocity_count_1h": (
-                    scoring_result.features_used.velocity_count_1h
-                    if scoring_result.features_used
-                    else 0
-                ),
-                "velocity_count_24h": (
-                    scoring_result.features_used.velocity_count_24h
-                    if scoring_result.features_used
-                    else 0
-                ),
-                "velocity_amount_1h": (
-                    scoring_result.features_used.velocity_amount_1h
-                    if scoring_result.features_used
-                    else 0.0
-                ),
-                "velocity_amount_24h": (
-                    scoring_result.features_used.velocity_amount_24h
-                    if scoring_result.features_used
-                    else 0.0
-                ),
+                ref.split(":", 1)[-1]: (
+                    online_features.get(ref, [0.0])[0] if online_features.get(ref) else 0.0
+                )
+                for ref in FRAUD_FEATURE_REFS
             }
+            features_for_ml["tx_amount_last"] = request.amount_float
             prediction = server.predict(features_for_ml)
             if prediction:
                 ml_score = prediction.score

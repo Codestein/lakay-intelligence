@@ -30,11 +30,12 @@ from .evaluate import (
     log_evaluation_to_mlflow,
 )
 from .features import build_feature_matrix, get_feature_names
+from src.features.definitions.fraud_features import FRAUD_FEATURE_REFS
 
 logger = structlog.get_logger()
 
 DEFAULT_CONFIG = {
-    "model_name": "fraud-detector-v0.1",
+    "model_name": "fraud-detector-v0.2",
     "random_seed": 42,
     "test_size": 0.2,
     "sample_size": None,  # None = use full dataset
@@ -180,6 +181,8 @@ def train_model(
     all_params["test_rows"] = str(len(x_test))
     all_params["feature_count"] = str(len(get_feature_names()))
 
+    all_params["feature_set_version"] = hashlib.sha256("|".join(FRAUD_FEATURE_REFS).encode()).hexdigest()
+
     registered = _register_in_mlflow(
         model=model,
         model_name=model_name,
@@ -279,6 +282,8 @@ def _register_in_mlflow(
             params=params,
             tags={
                 "framework": "xgboost",
+                "feature_store": "feast",
+                "feature_set_version": params.get("feature_set_version", "unknown"),
                 "task": "fraud_detection",
                 "python_version": platform.python_version(),
                 "sklearn_version": sklearn.__version__,

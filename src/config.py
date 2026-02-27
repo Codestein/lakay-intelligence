@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    feast_repo_path: str = "src/features/feast_repo"
+    feast_materialization_interval_minutes: int = 15
+
     contracts_path: str = "../trebanx-contracts/schemas"
 
     # Data lake (MinIO/S3)

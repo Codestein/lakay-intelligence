@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 class ModelConfig:
     """Identity and loading configuration for the served model."""
 
-    name: str = "fraud-detector-v0.1"
+    name: str = "fraud-detector-v0.2"
     stage: str = "Production"
     fallback_stage: str = "Staging"
     reload_interval_seconds: int = 300
@@ -24,32 +24,46 @@ class FeatureSpec:
 
     features: list[str] = field(
         default_factory=lambda: [
-            "amount",
-            "amount_zscore",
-            "hour_of_day",
-            "day_of_week",
-            "tx_type_encoded",
-            "balance_delta_sender",
-            "balance_delta_receiver",
-            "velocity_count_1h",
-            "velocity_count_24h",
-            "velocity_amount_1h",
-            "velocity_amount_24h",
+            "login_count_10m",
+            "login_count_1h",
+            "tx_count_1h",
+            "tx_count_24h",
+            "circle_joins_24h",
+            "tx_amount_last",
+            "tx_amount_mean_30d",
+            "tx_amount_std_30d",
+            "tx_amount_zscore",
+            "tx_cumulative_24h",
+            "tx_cumulative_7d",
+            "ctr_proximity_score",
+            "distinct_countries_7d",
+            "max_travel_speed_24h",
+            "duplicate_tx_count_1h",
+            "same_recipient_tx_sum_24h",
+            "round_amount_ratio_30d",
+            "tx_time_regularity_score",
         ]
     )
     feature_types: dict[str, str] = field(
         default_factory=lambda: {
-            "amount": "float",
-            "amount_zscore": "float",
-            "hour_of_day": "int",
-            "day_of_week": "int",
-            "tx_type_encoded": "int",
-            "balance_delta_sender": "float",
-            "balance_delta_receiver": "float",
-            "velocity_count_1h": "int",
-            "velocity_count_24h": "int",
-            "velocity_amount_1h": "float",
-            "velocity_amount_24h": "float",
+            "login_count_10m": "int",
+            "login_count_1h": "int",
+            "tx_count_1h": "int",
+            "tx_count_24h": "int",
+            "circle_joins_24h": "int",
+            "tx_amount_last": "float",
+            "tx_amount_mean_30d": "float",
+            "tx_amount_std_30d": "float",
+            "tx_amount_zscore": "float",
+            "tx_cumulative_24h": "float",
+            "tx_cumulative_7d": "float",
+            "ctr_proximity_score": "float",
+            "distinct_countries_7d": "int",
+            "max_travel_speed_24h": "float",
+            "duplicate_tx_count_1h": "int",
+            "same_recipient_tx_sum_24h": "float",
+            "round_amount_ratio_30d": "float",
+            "tx_time_regularity_score": "float",
         }
     )
 

@@ -23,6 +23,8 @@ services:
       DATALAKE_ACCESS_KEY: minioadmin
       DATALAKE_SECRET_KEY: minioadmin
       DATALAKE_BUCKET: lakay-data-lake
+      FEAST_REPO_PATH: src/features/feast_repo
+      FEAST_MATERIALIZATION_INTERVAL_MINUTES: 15
     volumes:
       - ../trebanx-contracts/schemas:/contracts:ro
     healthcheck:
