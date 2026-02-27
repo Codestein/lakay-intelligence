@@ -128,6 +128,7 @@ class BehaviorProfileEngine:
         days_inactive = (now - profile.last_updated).days
         if days_inactive >= cfg.staleness_threshold_days:
             profile.profile_status = ProfileStatus.STALE
+            self._apply_adaptive_decay(profile, days_inactive)
             # Use a lower alpha for stale profiles (slower adaptation back)
             alpha = alpha * 0.5
 
@@ -231,11 +232,9 @@ class BehaviorProfileEngine:
 
         # Apply staleness check
         days_inactive = (now - profile.last_updated).days
-        if (
-            days_inactive >= self._config.profile.staleness_threshold_days
-            and profile.profile_status == ProfileStatus.ACTIVE
-        ):
+        if days_inactive >= self._config.profile.staleness_threshold_days:
             profile.profile_status = ProfileStatus.STALE
+            self._apply_adaptive_decay(profile, days_inactive)
 
         return profile
 
@@ -540,6 +539,34 @@ class BehaviorProfileEngine:
             baseline.typical_action_sequences.append(seq)
             if len(baseline.typical_action_sequences) > 10:
                 baseline.typical_action_sequences = baseline.typical_action_sequences[-10:]
+
+    def _apply_adaptive_decay(self, profile: UserBehaviorProfile, days_inactive: int) -> None:
+        """Broaden profile tolerances after prolonged inactivity.
+
+        This prevents false positives when a user returns after a long break by
+        widening variance/tolerance bands and softening sharp temporal peaks.
+        """
+        cfg = self._config.profile
+        if days_inactive < cfg.staleness_threshold_days:
+            return
+
+        extra_days = max(days_inactive - cfg.staleness_threshold_days, 0)
+        decay_factor = min(1.0 + (extra_days / 30.0) * 0.25, cfg.stale_tolerance_multiplier)
+
+        sb = profile.session_baseline
+        sb.std_duration = max(sb.std_duration * decay_factor, 30.0)
+        sb.std_actions = max(sb.std_actions * decay_factor, 1.0)
+
+        # Shift temporal distributions slightly toward a broader baseline.
+        tb = profile.temporal_baseline
+        if tb.typical_hours:
+            uniform_hour = 1.0 / 24.0
+            for hour, value in list(tb.typical_hours.items()):
+                tb.typical_hours[hour] = (0.8 * value) + (0.2 * uniform_hour)
+        if tb.typical_days:
+            uniform_day = 1.0 / 7.0
+            for day, value in list(tb.typical_days.items()):
+                tb.typical_days[day] = (0.8 * value) + (0.2 * uniform_day)
 
     # --- Math Helpers ---
 

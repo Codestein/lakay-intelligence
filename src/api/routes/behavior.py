@@ -8,9 +8,11 @@ from datetime import datetime
 
 import structlog
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_session
+from src.db.models import UserProfileDB
 from src.domains.behavior.anomaly import SessionAnomalyScorer
 from src.domains.behavior.ato import ATODetector
 from src.domains.behavior.engagement import EngagementScorer
@@ -179,33 +181,42 @@ async def get_user_engagement(
 
 
 @router.get("/engagement/summary")
-async def get_engagement_summary() -> dict:
-    """Distribution of users across lifecycle stages, average engagement by stage.
+async def get_engagement_summary(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+    limit: int = Query(default=200, ge=1, le=2000),
+) -> dict:
+    """Distribution of users across lifecycle stages, average engagement by stage."""
+    rows = (await session.execute(select(UserProfileDB.user_id).limit(limit))).scalars().all()
 
-    Note: In production, this would query aggregated data from the database.
-    Currently returns a placeholder as individual user scoring is done on-demand.
-    """
-    return {
-        "total_users": 0,
-        "stage_distribution": {},
-        "avg_engagement_by_stage": {},
-        "message": "Query individual users via /users/{user_id}/engagement. "
-        "Batch summary requires aggregated data.",
-    }
+    engagements = []
+    for user_id in rows:
+        profile = await _profile_engine.get_profile(user_id, session)
+        engagements.append(await _engagement_scorer.score_engagement(user_id=user_id, profile=profile))
+
+    summary = await _engagement_scorer.get_engagement_summary(engagements)
+    data = summary.model_dump()
+    data["sample_size"] = len(rows)
+    return data
 
 
 @router.get("/engagement/at-risk")
-async def get_at_risk_users() -> dict:
-    """Users in declining stage or with high churn risk.
+async def get_at_risk_users(
+    session: AsyncSession = Depends(get_session),  # noqa: B008
+    limit: int = Query(default=200, ge=1, le=2000),
+) -> dict:
+    """Users in declining stage or with high churn risk."""
+    rows = (await session.execute(select(UserProfileDB.user_id).limit(limit))).scalars().all()
 
-    Note: In production, this would query users flagged in the database.
-    Currently returns a placeholder.
-    """
+    engagements = []
+    for user_id in rows:
+        profile = await _profile_engine.get_profile(user_id, session)
+        engagements.append(await _engagement_scorer.score_engagement(user_id=user_id, profile=profile))
+
+    at_risk = _engagement_scorer.get_at_risk_users(engagements)
     return {
-        "items": [],
-        "total": 0,
-        "message": "At-risk users are identified during engagement scoring. "
-        "Query individual users to check churn risk.",
+        "items": [item.model_dump() for item in at_risk],
+        "total": len(at_risk),
+        "sample_size": len(rows),
     }
 
 
