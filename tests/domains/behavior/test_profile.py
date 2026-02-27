@@ -249,3 +249,32 @@ class TestProfileStaleness:
         retrieved = await engine.get_profile("user-123", mock_db_session)
         assert retrieved is not None
         assert retrieved.profile_status == ProfileStatus.STALE
+
+
+class TestAdaptiveDecay:
+    def test_decay_broadens_stale_profile_tolerances(self, engine):
+        profile = UserBehaviorProfile(
+            user_id="user-decay",
+            profile_status=ProfileStatus.ACTIVE,
+            profile_maturity=20,
+            session_baseline=SessionBaseline(
+                avg_duration=300,
+                std_duration=10,
+                avg_actions=6,
+                std_actions=0.5,
+            ),
+            temporal_baseline=TemporalBaseline(
+                typical_hours={19: 1.0},
+                typical_days={4: 1.0},
+            ),
+            device_baseline=DeviceBaseline(),
+            geographic_baseline=GeographicBaseline(),
+            last_updated=datetime.now(UTC) - timedelta(days=45),
+        )
+
+        engine._apply_adaptive_decay(profile, days_inactive=45)
+
+        assert profile.session_baseline.std_duration >= 30
+        assert profile.session_baseline.std_actions >= 1
+        assert profile.temporal_baseline.typical_hours[19] < 1.0
+        assert profile.temporal_baseline.typical_days[4] < 1.0
