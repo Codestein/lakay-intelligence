@@ -248,11 +248,16 @@ def detect_slow_structuring(
             behavior_factor = 0.7
 
     count_factor = min(1.0, len(in_range) / 10.0)
+    cumulative_factor = min(1.0, cumulative / (sc.slow_cumulative_threshold * 1.5))
+    # Boost confidence when all slow-structuring indicators are jointly present:
+    # repeated in-range transfers + regular cadence + threshold-evading aggregation.
+    indicator_stack_bonus = 0.20 if len(in_range) >= sc.slow_min_transactions else 0.0
     confidence = (
-        0.30 * avg_proximity
-        + 0.25 * temporal
+        0.20 * avg_proximity
+        + 0.30 * temporal
         + 0.20 * count_factor
-        + 0.25 * (cumulative / (sc.slow_cumulative_threshold * 2))
+        + 0.30 * cumulative_factor
+        + indicator_stack_bonus
     ) * behavior_factor
 
     detection = StructuringDetection(
@@ -356,7 +361,7 @@ def detect_fan_out_structuring(
         recipient_factor = min(1.0, len(recipients) / 6.0)
         amount_factor = min(1.0, cumulative / (sc.fanout_cumulative_threshold * 1.5))
 
-        confidence = 0.35 * avg_proximity + 0.35 * recipient_factor + 0.30 * amount_factor
+        confidence = 0.20 * avg_proximity + 0.40 * recipient_factor + 0.40 * amount_factor
 
         detection = StructuringDetection(
             detection_id=str(uuid.uuid4()),
@@ -462,7 +467,7 @@ def detect_funnel_structuring(
         sender_factor = min(1.0, len(senders) / 6.0)
         amount_factor = min(1.0, cumulative / (sc.funnel_cumulative_threshold * 1.5))
 
-        confidence = 0.35 * avg_proximity + 0.35 * sender_factor + 0.30 * amount_factor
+        confidence = 0.20 * avg_proximity + 0.40 * sender_factor + 0.40 * amount_factor
 
         detection = StructuringDetection(
             detection_id=str(uuid.uuid4()),
