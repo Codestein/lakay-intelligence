@@ -1,22 +1,28 @@
-"""Circle health scoring. Stub for Phase 3."""
+"""Circle health scoring — legacy compatibility wrapper.
 
-from datetime import UTC, datetime
+This module preserves the original CircleHealthScorer interface used by
+existing consumers. It delegates to the new Phase 6 scoring engine.
+"""
+
 
 import structlog
 
-from .models import CircleHealthRequest, CircleHealthResponse
+from src.features.store import FeatureStore
+
+from .models import CircleHealthRequest
+from .scoring import CircleHealthScorer as ScoringEngine
 
 logger = structlog.get_logger()
 
+_feature_store = FeatureStore()
+_scorer = ScoringEngine()
+
 
 class CircleHealthScorer:
-    async def score(self, request: CircleHealthRequest) -> CircleHealthResponse:
+    """Legacy wrapper. Use src.domains.circles.scoring.CircleHealthScorer directly."""
+
+    async def score(self, request: CircleHealthRequest) -> dict:
         logger.info("scoring_circle_health", circle_id=request.circle_id)
-        return CircleHealthResponse(
-            circle_id=request.circle_id,
-            score=0.0,
-            confidence=0.0,
-            factors={},
-            model_version="stub",
-            computed_at=datetime.now(UTC),
-        )
+        features = await _feature_store.get_features(request.circle_id, "circle_health")
+        result = _scorer.score(request.circle_id, features)
+        return result.model_dump()

@@ -44,8 +44,52 @@ class CircleHealth(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     circle_id: Mapped[str] = mapped_column(String, index=True)
     health_score: Mapped[float] = mapped_column(Float)
+    health_tier: Mapped[str] = mapped_column(String, default="healthy")
+    trend: Mapped[str] = mapped_column(String, default="stable")
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    dimension_scores: Mapped[dict] = mapped_column(JSONB, default=dict)
     factors: Mapped[dict] = mapped_column(JSONB, default=dict)
+    scoring_version: Mapped[str] = mapped_column(String, default="circle-health-v1")
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class CircleAnomalyDB(Base):
+    __tablename__ = "circle_anomalies"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    anomaly_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    circle_id: Mapped[str] = mapped_column(String, index=True)
+    anomaly_type: Mapped[str] = mapped_column(String, index=True)
+    severity: Mapped[str] = mapped_column(String)
+    affected_members: Mapped[dict] = mapped_column(JSONB, default=list)
+    evidence: Mapped[dict] = mapped_column(JSONB, default=list)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class CircleClassificationDB(Base):
+    __tablename__ = "circle_classifications"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    circle_id: Mapped[str] = mapped_column(String, index=True)
+    health_tier: Mapped[str] = mapped_column(String, index=True)
+    health_score: Mapped[float] = mapped_column(Float)
+    trend: Mapped[str] = mapped_column(String)
+    anomaly_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    recommended_actions: Mapped[dict] = mapped_column(JSONB, default=list)
+    classification_reason: Mapped[str] = mapped_column(String, default="")
+    classified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class CircleTierChangeDB(Base):
+    __tablename__ = "circle_tier_changes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    circle_id: Mapped[str] = mapped_column(String, index=True)
+    previous_tier: Mapped[str] = mapped_column(String)
+    new_tier: Mapped[str] = mapped_column(String)
+    health_score: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str] = mapped_column(String)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class UserProfileDB(Base):

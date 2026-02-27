@@ -80,18 +80,22 @@ class TestHealthEndpoints:
             app.dependency_overrides.clear()
 
     @pytest.mark.asyncio
-    async def test_circle_health_stub(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post(
-                "/api/v1/circles/health",
-                json={
-                    "circle_id": "550e8400-e29b-41d4-a716-446655440000",
-                },
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["model_version"] == "stub"
+    async def test_circle_health_get(self):
+        mock_session = _mock_session_with_no_results()
+        app.dependency_overrides[get_session] = override_get_session(mock_session)
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get(
+                    "/api/v1/circles/550e8400-e29b-41d4-a716-446655440000/health",
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["circle_id"] == "550e8400-e29b-41d4-a716-446655440000"
+                # No score computed yet for this circle
+                assert data["health_score"] is None
+        finally:
+            app.dependency_overrides.clear()
 
     @pytest.mark.asyncio
     async def test_behavior_anomaly_stub(self):
