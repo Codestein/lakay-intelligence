@@ -19,6 +19,10 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      DATALAKE_ENDPOINT: http://minio:9000
+      DATALAKE_ACCESS_KEY: minioadmin
+      DATALAKE_SECRET_KEY: minioadmin
+      DATALAKE_BUCKET: lakay-data-lake
     volumes:
       - ../trebanx-contracts/schemas:/contracts:ro
     healthcheck:
@@ -107,6 +111,7 @@ services:
       /bin/sh -c "
       mc alias set lakay http://minio:9000 minioadmin minioadmin &&
       mc mb --ignore-existing lakay/mlflow-artifacts &&
+      mc mb --ignore-existing lakay/lakay-data-lake &&
       exit 0;
       "
 
