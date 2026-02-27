@@ -1,11 +1,15 @@
 """Feature engineering for the fraud detection ML model.
 
-Extracts features from PaySim-style data mapped to Trebanx event schema.
-Features align with the rule-based dimensions from Phase 3: transaction
-amount, type, balance deltas, temporal patterns, and velocity measures.
+Phase 5 refactoring: Features are now defined in the Feast feature store
+(``src/features/definitions/fraud_features.py``) and should be retrieved via
+the feature store client for both training and serving.
 
-Feature Schema
---------------
+This module retains the ad-hoc extraction functions for backward compatibility
+with the v0.1 training pipeline (PaySim data) and adds Feast-backed retrieval
+for the v0.2+ pipeline.
+
+Feature Schema (v0.1 — ad-hoc, PaySim)
+---------------------------------------
 | Feature                  | Type  | Computation                                         |
 |--------------------------|-------|-----------------------------------------------------|
 | amount                   | float | Raw transaction amount                              |
@@ -19,7 +23,14 @@ Feature Schema
 | velocity_count_24h       | int   | Transaction count in rolling 24-hour window         |
 | velocity_amount_1h       | float | Sum of amounts in rolling 1-hour window             |
 | velocity_amount_24h      | float | Sum of amounts in rolling 24-hour window            |
+
+Feature Schema (v0.2 — Feast-backed)
+-------------------------------------
+See ``src/features/definitions/fraud_features.py`` for the full Feast feature
+set (20+ features across velocity, amount, geographic, and pattern dimensions).
 """
+
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
@@ -43,8 +54,81 @@ TX_TYPE_MAP = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# v0.2 — Feast-backed feature retrieval
+# --------------------------------------------------------------------------- #
+
+
+def build_feature_matrix_feast(
+    entity_df: pd.DataFrame,
+    feature_refs: list[str] | None = None,
+) -> pd.DataFrame:
+    """Build a training feature matrix using the Feast offline store.
+
+    This is the v0.2+ path. Features are retrieved via a point-in-time correct
+    join from the Feast offline store, guaranteeing zero training-serving skew.
+
+    Args:
+        entity_df: DataFrame with ``user_id`` and ``event_timestamp`` columns.
+        feature_refs: Feast feature references. Defaults to all fraud features.
+
+    Returns:
+        DataFrame with entity keys plus feature columns.
+    """
+    from src.features.definitions.fraud_features import get_fraud_feature_refs
+    from src.features.store import get_feature_store
+
+    if feature_refs is None:
+        feature_refs = get_fraud_feature_refs()
+
+    store = get_feature_store()
+    result_df = store.get_historical_features(
+        entity_df=entity_df,
+        feature_refs=feature_refs,
+    )
+
+    logger.info(
+        "feast_feature_matrix_built",
+        shape=result_df.shape,
+        feature_count=len(feature_refs),
+    )
+
+    return result_df
+
+
+def get_serving_features(
+    entity_rows: list[dict],
+    feature_refs: list[str] | None = None,
+) -> dict:
+    """Fetch features from the Feast online store for serving-time scoring.
+
+    Args:
+        entity_rows: List of entity key dicts, e.g. [{"user_id": "u123"}].
+        feature_refs: Feast feature references. Defaults to all fraud features.
+
+    Returns:
+        Dictionary mapping feature names to lists of values.
+    """
+    from src.features.definitions.fraud_features import get_fraud_feature_refs
+    from src.features.store import get_feature_store
+
+    if feature_refs is None:
+        feature_refs = get_fraud_feature_refs()
+
+    store = get_feature_store()
+    return store.get_online_features(entity_rows=entity_rows, feature_refs=feature_refs)
+
+
+# --------------------------------------------------------------------------- #
+# v0.1 — Ad-hoc feature extraction (retained for backward compatibility)
+# --------------------------------------------------------------------------- #
+
+
 def extract_features(df: pd.DataFrame) -> pd.DataFrame:
     """Extract ML features from a PaySim-format DataFrame.
+
+    .. deprecated:: 0.2.0
+        Use :func:`build_feature_matrix_feast` for Feast-backed retrieval.
 
     Expected columns (PaySim naming):
         step, type, amount, nameOrig, oldbalanceOrg, newbalanceOrig,
@@ -137,7 +221,7 @@ def _compute_velocity(df: pd.DataFrame, window_steps: int) -> pd.DataFrame:
 
 
 def get_feature_names() -> list[str]:
-    """Return ordered list of feature names used by the model."""
+    """Return ordered list of feature names used by the v0.1 model."""
     return [
         "amount",
         "amount_zscore",
@@ -153,6 +237,13 @@ def get_feature_names() -> list[str]:
     ]
 
 
+def get_feast_feature_names() -> list[str]:
+    """Return the Feast feature set names used by v0.2+ models."""
+    from src.features.definitions.fraud_features import get_fraud_feature_names
+
+    return get_fraud_feature_names()
+
+
 def prepare_labels(df: pd.DataFrame) -> pd.Series:
     """Extract fraud labels from the dataset."""
     return df["isFraud"].astype(int)
@@ -163,7 +254,10 @@ def build_feature_matrix(
     sample_size: int | None = None,
     random_state: int = 42,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Load dataset, extract features and labels.
+    """Load dataset, extract features and labels using the v0.1 ad-hoc path.
+
+    .. deprecated:: 0.2.0
+        Use :func:`build_feature_matrix_feast` for Feast-backed retrieval.
 
     Args:
         data_path: Path to PaySim CSV file.

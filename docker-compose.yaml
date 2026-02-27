@@ -19,6 +19,13 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      # Feast feature store configuration (Phase 5)
+      FEAST_REDIS_URL: redis://redis:6379/2
+      FEAST_POSTGRES_HOST: postgres
+      FEAST_POSTGRES_PORT: "5432"
+      FEAST_POSTGRES_DB: lakay
+      FEAST_POSTGRES_USER: lakay
+      FEAST_POSTGRES_PASSWORD: lakay_dev
     volumes:
       - ../trebanx-contracts/schemas:/contracts:ro
     healthcheck:
@@ -80,6 +87,11 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   minio:
     image: minio/minio:latest

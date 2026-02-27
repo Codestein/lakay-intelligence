@@ -1,0 +1,17 @@
+project: lakay_intelligence
+provider: local
+registry:
+  registry_type: file
+  path: /tmp/feast/registry.db
+online_store:
+  type: redis
+  connection_string: ${FEAST_REDIS_URL:-redis://localhost:6379/2}
+offline_store:
+  type: postgres
+  host: ${FEAST_POSTGRES_HOST:-localhost}
+  port: ${FEAST_POSTGRES_PORT:-5432}
+  database: ${FEAST_POSTGRES_DB:-lakay}
+  db_schema: feast
+  user: ${FEAST_POSTGRES_USER:-lakay}
+  password: ${FEAST_POSTGRES_PASSWORD:-lakay_dev}
+entity_key_serialization_version: 2
