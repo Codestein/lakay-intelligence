@@ -221,7 +221,8 @@ class RoundAmountClusteringRule(FraudRule):
         return self._triggered(
             score=score,
             risk_factor=RiskFactor.ROUND_AMOUNT_CLUSTERING,
-            details=f"{pct:.0%} round amounts in last {lookback_days}d ({round_count}/{len(amounts)})",
+            details=f"{pct:.0%} round amounts in last {lookback_days}d"
+            f" ({round_count}/{len(amounts)})",
             severity="medium",
             confidence=0.65,
             evidence={

@@ -209,7 +209,7 @@ class CTRProximityRule(FraudRule):
             return self._triggered(
                 score=score,
                 risk_factor=RiskFactor.CTR_PROXIMITY,
-                details=f"Daily total ${daily_total:,.2f} near CTR threshold (${daily_threshold:,.2f})",
+                details=f"Daily total ${daily_total:,.2f} near CTR threshold",
                 severity="critical",
                 confidence=0.90,
                 evidence={

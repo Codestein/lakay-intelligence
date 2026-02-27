@@ -14,7 +14,6 @@ from src.domains.fraud.models import (
 )
 from src.domains.fraud.scorer import FraudScorer
 
-
 CONFIG = FraudConfig()
 
 
@@ -165,7 +164,7 @@ class TestFraudScorer:
                 return_value=(low_ctx, []),
             ),
         ):
-            result = await scorer.score_transaction(request, mock_session)
+            await scorer.score_transaction(request, mock_session)
 
         # Check the persisted FraudScore row has v2
         score_row = mock_session.add.call_args_list[0][0][0]

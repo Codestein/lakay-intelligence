@@ -193,5 +193,8 @@ class NewDeviceRule(FraudRule):
             details="Transaction from previously unseen device",
             severity="low",
             confidence=0.60,
-            evidence={"device_id": request.device_id, "unique_devices_7d": features.unique_devices_7d},
+            evidence={
+                "device_id": request.device_id,
+                "unique_devices_7d": features.unique_devices_7d,
+            },
         )

@@ -1,6 +1,6 @@
 """Unit tests for velocity-based fraud detection rules."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
