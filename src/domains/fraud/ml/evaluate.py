@@ -176,6 +176,7 @@ def log_evaluation_to_mlflow(
     metrics: dict[str, float],
     report_text: str,
     comparison: dict[str, Any] | None = None,
+    run_id: str | None = None,
 ) -> None:
     """Log evaluation artifacts to the active MLflow run."""
     try:
@@ -183,6 +184,9 @@ def log_evaluation_to_mlflow(
         import tempfile
 
         import mlflow
+
+        if run_id:
+            mlflow.start_run(run_id=run_id)
 
         # Log metrics
         for k, v in metrics.items():
@@ -206,3 +210,11 @@ def log_evaluation_to_mlflow(
 
     except ImportError:
         logger.warning("mlflow_not_available_for_logging")
+    finally:
+        try:
+            if run_id:
+                import mlflow
+
+                mlflow.end_run()
+        except Exception:
+            logger.warning("mlflow_end_run_failed")
