@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -110,8 +110,18 @@ def mock_kafka_consumer():
 @pytest.fixture
 def mock_db_session():
     session = AsyncMock()
+    session.add = MagicMock()
     session.execute = AsyncMock()
     session.commit = AsyncMock()
     session.rollback = AsyncMock()
     session.close = AsyncMock()
     return session
+
+
+def override_get_session(mock_session):
+    """Create a get_session override for FastAPI dependency injection."""
+
+    async def _override():
+        yield mock_session
+
+    return _override
