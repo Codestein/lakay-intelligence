@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 import hashlib
+import platform
 import time
 from typing import Any
 
@@ -175,6 +176,9 @@ def train_model(
     all_params["test_size"] = str(config["test_size"])
     all_params["random_seed"] = str(seed)
     all_params["training_duration_seconds"] = str(round(training_duration, 1))
+    all_params["train_rows"] = str(len(x_train))
+    all_params["test_rows"] = str(len(x_test))
+    all_params["feature_count"] = str(len(get_feature_names()))
 
     registered = _register_in_mlflow(
         model=model,
@@ -262,6 +266,9 @@ def _register_in_mlflow(
 ) -> dict | None:
     """Register the trained model in MLflow and promote to Staging."""
     try:
+        import sklearn
+        import xgboost
+
         from src.serving.registry import ModelRegistry
 
         registry = ModelRegistry(tracking_uri=tracking_uri)
@@ -270,13 +277,19 @@ def _register_in_mlflow(
             name=model_name,
             metrics=metrics,
             params=params,
-            tags={"framework": "xgboost", "task": "fraud_detection"},
+            tags={
+                "framework": "xgboost",
+                "task": "fraud_detection",
+                "python_version": platform.python_version(),
+                "sklearn_version": sklearn.__version__,
+                "xgboost_version": xgboost.__version__,
+            },
             feature_list=feature_list,
             training_dataset_hash=dataset_hash,
         )
 
         # Log evaluation artifacts
-        log_evaluation_to_mlflow(metrics, report_text, comparison)
+        log_evaluation_to_mlflow(metrics, report_text, comparison, run_id=metadata.run_id)
 
         # Promote to Staging
         registry.promote_model(model_name, metadata.version, "Staging")

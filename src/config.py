@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     datalake_secret_key: str = "minioadmin"
     datalake_bucket: str = "lakay-data-lake"
 
+
+    mlflow_tracking_uri: str = "http://localhost:5000"
+
     # PII tokenization
     pii_token_secret: str = "lakay-pii-token-secret-dev-only"
     pii_encryption_key: str = "lakay-encryption-key-dev-only"

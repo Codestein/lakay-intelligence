@@ -4,22 +4,45 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/domains/fraud/ml/**'
+      - "src/domains/fraud/ml/**"
   workflow_dispatch:
     inputs:
       action:
-        description: 'Action to perform'
+        description: "Action to perform"
         required: true
-        default: 'train'
+        default: "train"
         type: choice
         options:
           - train
           - promote
+      model_version:
+        description: "Model version to promote when action=promote"
+        required: false
+        type: string
 
 jobs:
   train:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'train')
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lakay
+          POSTGRES_PASSWORD: lakay_dev
+          POSTGRES_DB: lakay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lakay"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,53 +52,62 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install ".[ml]"
+        run: pip install ".[ml,dev]"
 
-      - name: Download PaySim dataset
+      - name: Start MLflow server
         run: |
-          # In CI, use a cached/small sample dataset for validation
-          # Full training uses the complete PaySim dataset
-          python -c "
-          import pandas as pd
+          python -m pip install mlflow boto3 psycopg2-binary
+          mlflow server \
+            --host 0.0.0.0 \
+            --port 5000 \
+            --backend-store-uri postgresql://lakay:lakay_dev@127.0.0.1:5432/lakay \
+            --default-artifact-root ./mlruns &
+          sleep 10
+
+      - name: Prepare synthetic PaySim sample
+        run: |
+          mkdir -p data
+          python - <<'PY'
           import numpy as np
+          import pandas as pd
+
           np.random.seed(42)
           n = 10000
-          types = ['CASH_IN', 'CASH_OUT', 'DEBIT', 'PAYMENT', 'TRANSFER']
+          types = ["CASH_IN", "CASH_OUT", "DEBIT", "PAYMENT", "TRANSFER"]
           df = pd.DataFrame({
-              'step': np.random.randint(1, 744, n),
-              'type': np.random.choice(types, n),
-              'amount': np.random.lognormal(4.5, 1.2, n),
-              'nameOrig': ['C' + str(i % 500) for i in range(n)],
-              'oldbalanceOrg': np.random.lognormal(7, 2, n),
-              'newbalanceOrig': np.random.lognormal(7, 2, n),
-              'nameDest': ['M' + str(i % 200) for i in range(n)],
-              'oldbalanceDest': np.random.lognormal(7, 2, n),
-              'newbalanceDest': np.random.lognormal(7, 2, n),
-              'isFraud': (np.random.random(n) < 0.012).astype(int),
-              'isFlaggedFraud': np.zeros(n, dtype=int),
+              "step": np.random.randint(1, 744, n),
+              "type": np.random.choice(types, n),
+              "amount": np.random.lognormal(4.5, 1.2, n),
+              "nameOrig": ["C" + str(i % 500) for i in range(n)],
+              "oldbalanceOrg": np.random.lognormal(7, 2, n),
+              "newbalanceOrig": np.random.lognormal(7, 2, n),
+              "nameDest": ["M" + str(i % 200) for i in range(n)],
+              "oldbalanceDest": np.random.lognormal(7, 2, n),
+              "newbalanceDest": np.random.lognormal(7, 2, n),
+              "isFraud": (np.random.random(n) < 0.012).astype(int),
+              "isFlaggedFraud": np.zeros(n, dtype=int),
           })
-          df.to_csv('data/paysim_ci.csv', index=False)
-          "
-          mkdir -p data
+          df.to_csv("data/paysim_ci.csv", index=False)
+          PY
 
-      - name: Train model
+      - name: Train and register staged model
         run: |
           python -m src.domains.fraud.ml.train \
             --dataset data/paysim_ci.csv \
             --sample-size 10000 \
-            --mlflow-uri ${MLFLOW_TRACKING_URI:-http://localhost:5000}
+            --mlflow-uri $MLFLOW_TRACKING_URI
 
       - name: Validate staged model
         run: |
-          python -c "
+          python - <<'PY'
           from src.serving.deploy import DeploymentPipeline
-          pipeline = DeploymentPipeline()
-          result = pipeline.validate_model('fraud-detector-v0.1', version='1')
-          print(f'Validation passed: {result.passed}')
-          print(f'Checks: {result.checks}')
+
+          pipeline = DeploymentPipeline(tracking_uri="http://127.0.0.1:5000")
+          result = pipeline.validate_model("fraud-detector-v0.1", version="1")
+          print({"passed": result.passed, "checks": result.checks, "details": result.details})
           if not result.passed:
-              raise SystemExit('Model validation failed')
-          "
+              raise SystemExit("Model validation failed")
+          PY
 
   promote:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'promote'
@@ -89,19 +121,24 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install ".[ml]"
+        run: pip install ".[ml,dev]"
 
       - name: Promote to Production
+        env:
+          MODEL_VERSION: ${{ github.event.inputs.model_version }}
         run: |
-          python -c "
+          test -n "$MODEL_VERSION" || (echo "model_version input is required" && exit 1)
+          python - <<'PY'
+          import os
           from src.serving.deploy import DeploymentPipeline
+
           pipeline = DeploymentPipeline()
           record = pipeline.promote_to_production(
-              'fraud-detector-v0.1',
-              version='latest',
-              triggered_by='ci-workflow',
+              "fraud-detector-v0.1",
+              version=os.environ["MODEL_VERSION"],
+              triggered_by="ci-workflow",
           )
-          print(f'Promotion success: {record.success}')
+          print({"success": record.success, "version": record.model_version})
           if not record.success:
-              raise SystemExit('Promotion failed')
-          "
+              raise SystemExit("Promotion failed")
+          PY

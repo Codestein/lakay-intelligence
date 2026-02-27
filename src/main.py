@@ -22,6 +22,7 @@ from src.api.routes.fraud import router as fraud_router
 from src.api.routes.health import router as health_router
 from src.api.routes.pipeline import router as pipeline_router
 from src.api.routes.serving import router as serving_router
+from src.serving.server import get_model_server
 from src.config import settings
 from src.shared.logging import setup_logging
 
@@ -53,6 +54,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Start Kafka consumers as background tasks
     consumer_tasks: list[asyncio.Task] = []
     consumers = []
+    # Initialize model server (best-effort, rules engine remains authoritative fallback)
+    try:
+        model_server = get_model_server()
+        model_server.load_model(tracking_uri=settings.mlflow_tracking_uri)
+    except Exception:
+        logger.warning("model_server_startup_load_failed", exc_info=True)
+
     try:
         from src.consumers.circle_consumer import CircleConsumer
         from src.consumers.remittance_consumer import RemittanceConsumer
