@@ -1,17 +1,20 @@
-"""Baseline fraud detection model training pipeline.
+"""Fraud detection model training pipeline.
+
+Supports two training modes:
+- **v0.1 (ad-hoc)**: Extracts features directly from PaySim CSV data.
+- **v0.2 (Feast-backed)**: Retrieves features from the Feast offline store,
+  guaranteeing zero training-serving skew.
 
 Trains a Gradient Boosted Tree (XGBoost) on PaySim data mapped to
 Trebanx event schema. Uses MLflow for experiment tracking and model
 registration.
 
-Why XGBoost over LightGBM: Both are excellent for tabular fraud data.
-XGBoost has broader MLflow integration support and slightly simpler
-deployment via mlflow.xgboost. Either would work — committing to XGBoost
-for consistency.
-
 Usage:
+    # v0.1 (ad-hoc features)
     python -m src.domains.fraud.ml.train --dataset data/paysim.csv
-    python -m src.domains.fraud.ml.train --dataset data/paysim.csv --config config.yaml
+
+    # v0.2 (Feast feature store)
+    python -m src.domains.fraud.ml.train --dataset data/paysim.csv --use-feast
 """
 
 import argparse
@@ -38,6 +41,7 @@ DEFAULT_CONFIG = {
     "test_size": 0.2,
     "sample_size": None,  # None = use full dataset
     "mlflow_tracking_uri": "http://localhost:5000",
+    "use_feast": False,  # Phase 5: set True for v0.2 training
     "hyperparams": {
         "n_estimators": 100,
         "max_depth": 6,
@@ -81,6 +85,51 @@ def _deep_merge(base: dict, override: dict) -> None:
             base[k] = v
 
 
+def _build_features_feast(
+    dataset_path: str,
+    sample_size: int | None = None,
+    random_state: int = 42,
+):
+    """Build features using the Feast offline store (v0.2 path).
+
+    Loads the PaySim CSV, constructs an entity DataFrame with user_id and
+    event_timestamp, then requests all fraud features via Feast's
+    point-in-time join.
+    """
+    import pandas as pd
+
+    from .features import build_feature_matrix_feast, get_feast_feature_names, prepare_labels
+
+    logger.info("building_feast_features", dataset=dataset_path)
+
+    df = pd.read_csv(dataset_path)
+    if sample_size and len(df) > sample_size:
+        df = df.sample(n=sample_size, random_state=random_state)
+
+    # Build entity DataFrame for Feast
+    entity_df = pd.DataFrame({
+        "user_id": df["nameOrig"].astype(str),
+        "event_timestamp": pd.to_datetime(df["step"], unit="h", origin="2026-01-01"),
+    })
+
+    features_df = build_feature_matrix_feast(entity_df=entity_df)
+
+    # Drop entity/timestamp columns to get pure feature matrix
+    feature_names = get_feast_feature_names()
+    feature_cols = [c for c in features_df.columns if c in feature_names]
+    features = features_df[feature_cols].fillna(0.0)
+
+    labels = prepare_labels(df)
+
+    logger.info(
+        "feast_feature_matrix_built",
+        shape=features.shape,
+        fraud_rate=float(labels.mean()),
+    )
+
+    return features, labels, feature_cols
+
+
 def train_model(
     dataset_path: str,
     config: dict[str, Any] | None = None,
@@ -88,7 +137,7 @@ def train_model(
     """Train a fraud detection model end-to-end.
 
     Steps:
-    1. Load and prepare features from PaySim dataset
+    1. Load and prepare features (ad-hoc or Feast-backed)
     2. Split into train/test
     3. Train XGBoost with specified hyperparameters
     4. Evaluate on held-out test set
@@ -104,16 +153,30 @@ def train_model(
     config = config or dict(DEFAULT_CONFIG)
     seed = config["random_seed"]
     model_name = config["model_name"]
+    use_feast = config.get("use_feast", False)
 
-    logger.info("training_started", model_name=model_name, dataset=dataset_path)
+    logger.info(
+        "training_started",
+        model_name=model_name,
+        dataset=dataset_path,
+        use_feast=use_feast,
+    )
     start_time = time.time()
 
     # 1. Build feature matrix
-    features, labels = build_feature_matrix(
-        data_path=dataset_path,
-        sample_size=config.get("sample_size"),
-        random_state=seed,
-    )
+    if use_feast:
+        features, labels, feature_list = _build_features_feast(
+            dataset_path=dataset_path,
+            sample_size=config.get("sample_size"),
+            random_state=seed,
+        )
+    else:
+        features, labels = build_feature_matrix(
+            data_path=dataset_path,
+            sample_size=config.get("sample_size"),
+            random_state=seed,
+        )
+        feature_list = get_feature_names()
 
     # 2. Train/test split
     from sklearn.model_selection import train_test_split
@@ -176,16 +239,23 @@ def train_model(
     all_params["random_seed"] = str(seed)
     all_params["training_duration_seconds"] = str(round(training_duration, 1))
 
+    # Build tags for v0.2 Feast-backed models
+    tags = {"framework": "xgboost", "task": "fraud_detection"}
+    if use_feast:
+        tags["feature_store"] = "feast"
+        tags["feature_set_version"] = _compute_feature_def_hash()
+
     registered = _register_in_mlflow(
         model=model,
         model_name=model_name,
         metrics=metrics,
         params=all_params,
-        feature_list=get_feature_names(),
+        feature_list=feature_list,
         dataset_hash=dataset_hash,
         report_text=report_text,
         comparison=comparison,
         tracking_uri=config.get("mlflow_tracking_uri", "http://localhost:5000"),
+        tags=tags,
     )
 
     result = {
@@ -196,8 +266,9 @@ def train_model(
         "model_version": registered.get("version", "unknown") if registered else "local",
         "training_duration_seconds": round(training_duration, 1),
         "dataset_hash": dataset_hash,
-        "feature_names": get_feature_names(),
+        "feature_names": feature_list,
         "config": config,
+        "use_feast": use_feast,
     }
 
     logger.info(
@@ -206,6 +277,7 @@ def train_model(
         auc_roc=metrics["auc_roc"],
         f1=metrics["f1_score"],
         duration_seconds=round(training_duration, 1),
+        use_feast=use_feast,
     )
 
     return result
@@ -259,6 +331,7 @@ def _register_in_mlflow(
     report_text: str,
     comparison: dict,
     tracking_uri: str,
+    tags: dict[str, str] | None = None,
 ) -> dict | None:
     """Register the trained model in MLflow and promote to Staging."""
     try:
@@ -270,7 +343,7 @@ def _register_in_mlflow(
             name=model_name,
             metrics=metrics,
             params=params,
-            tags={"framework": "xgboost", "task": "fraud_detection"},
+            tags=tags or {"framework": "xgboost", "task": "fraud_detection"},
             feature_list=feature_list,
             training_dataset_hash=dataset_hash,
         )
@@ -306,9 +379,18 @@ def _compute_file_hash(file_path: str) -> str:
         return "file_not_found"
 
 
+def _compute_feature_def_hash() -> str:
+    """Compute a hash of the Feast feature definitions for traceability."""
+    from src.features.definitions.fraud_features import get_fraud_feature_names
+
+    feature_names = sorted(get_fraud_feature_names())
+    content = ",".join(feature_names)
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Train baseline fraud detection model",
+        description="Train fraud detection model (v0.1 ad-hoc or v0.2 Feast-backed)",
         prog="python -m src.domains.fraud.ml.train",
     )
     parser.add_argument(
@@ -341,6 +423,17 @@ def main():
         default="http://localhost:5000",
         help="MLflow tracking URI",
     )
+    parser.add_argument(
+        "--use-feast",
+        action="store_true",
+        help="Use Feast feature store for feature retrieval (v0.2 pipeline)",
+    )
+    parser.add_argument(
+        "--model-name",
+        type=str,
+        default=None,
+        help="Override model name (e.g., fraud-detector-v0.2)",
+    )
 
     args = parser.parse_args()
 
@@ -350,6 +443,11 @@ def main():
     if args.seed:
         config["random_seed"] = args.seed
     config["mlflow_tracking_uri"] = args.mlflow_uri
+    if args.use_feast:
+        config["use_feast"] = True
+        config["model_name"] = args.model_name or "fraud-detector-v0.2"
+    if args.model_name:
+        config["model_name"] = args.model_name
 
     result = train_model(dataset_path=args.dataset, config=config)
 
@@ -360,6 +458,7 @@ def main():
     print(f"  Recall: {result['metrics']['recall']:.4f}")
     print(f"  F1: {result['metrics']['f1_score']:.4f}")
     print(f"  Duration: {result['training_duration_seconds']}s")
+    print(f"  Feature Store: {'Feast' if result.get('use_feast') else 'Ad-hoc'}")
 
 
 if __name__ == "__main__":
