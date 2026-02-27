@@ -43,9 +43,7 @@ class TestDuplicateTransactionRule:
 
     @pytest.mark.asyncio
     async def test_no_recipient(self):
-        result = await self.rule.evaluate(
-            _make_request(), EMPTY_FEATURES, _mock_session(), CONFIG
-        )
+        result = await self.rule.evaluate(_make_request(), EMPTY_FEATURES, _mock_session(), CONFIG)
         assert not result.triggered
 
     @pytest.mark.asyncio
@@ -196,9 +194,7 @@ class TestTemporalStructuringRule:
     async def test_too_few_transactions(self):
         timestamps = [NOW - timedelta(hours=2), NOW - timedelta(hours=1)]
         session = self._mock_session_timestamps(timestamps)
-        result = await self.rule.evaluate(
-            _make_request(), EMPTY_FEATURES, session, CONFIG
-        )
+        result = await self.rule.evaluate(_make_request(), EMPTY_FEATURES, session, CONFIG)
         assert not result.triggered
 
     @pytest.mark.asyncio
@@ -210,9 +206,7 @@ class TestTemporalStructuringRule:
             NOW - timedelta(minutes=30),
         ]
         session = self._mock_session_timestamps(timestamps)
-        result = await self.rule.evaluate(
-            _make_request(), EMPTY_FEATURES, session, CONFIG
-        )
+        result = await self.rule.evaluate(_make_request(), EMPTY_FEATURES, session, CONFIG)
         assert not result.triggered  # Irregular intervals, high stddev
 
     @pytest.mark.asyncio
@@ -225,9 +219,7 @@ class TestTemporalStructuringRule:
             NOW - timedelta(seconds=60),
         ]
         session = self._mock_session_timestamps(timestamps)
-        result = await self.rule.evaluate(
-            _make_request(), EMPTY_FEATURES, session, CONFIG
-        )
+        result = await self.rule.evaluate(_make_request(), EMPTY_FEATURES, session, CONFIG)
         assert result.triggered
         assert result.risk_factor == RiskFactor.TEMPORAL_STRUCTURING
         assert result.evidence["interval_stddev_seconds"] < 300.0
@@ -242,7 +234,5 @@ class TestTemporalStructuringRule:
             NOW - timedelta(seconds=58),
         ]
         session = self._mock_session_timestamps(timestamps)
-        result = await self.rule.evaluate(
-            _make_request(), EMPTY_FEATURES, session, CONFIG
-        )
+        result = await self.rule.evaluate(_make_request(), EMPTY_FEATURES, session, CONFIG)
         assert result.triggered  # stddev ~3s, well below 300s threshold

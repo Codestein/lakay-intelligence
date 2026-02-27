@@ -37,6 +37,7 @@ class DuplicateTransactionRule(FraudRule):
         now = request.initiated_at
         if not now:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC)
 
         start = now - timedelta(minutes=window_minutes)
@@ -48,9 +49,7 @@ class DuplicateTransactionRule(FraudRule):
         stmt = select(func.count()).where(
             RawEvent.event_type == "transaction-initiated",
             RawEvent.payload["payload"]["user_id"].astext == request.user_id,
-            RawEvent.payload["payload"].op("->>")(
-                "recipient_id"
-            ) == request.recipient_id,
+            RawEvent.payload["payload"].op("->>")("recipient_id") == request.recipient_id,
             amount_expr >= lower,
             amount_expr <= upper,
             RawEvent.received_at >= start,
@@ -112,6 +111,7 @@ class StructuringDetectionRule(FraudRule):
         now = request.initiated_at
         if not now:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC)
 
         window_hours = config.patterns.structuring_window_hours
@@ -185,6 +185,7 @@ class RoundAmountClusteringRule(FraudRule):
         now = request.initiated_at
         if not now:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC)
 
         lookback_days = config.patterns.round_amount_lookback_days
@@ -251,6 +252,7 @@ class TemporalStructuringRule(FraudRule):
         now = request.initiated_at
         if not now:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC)
 
         lookback_days = config.patterns.temporal_lookback_days

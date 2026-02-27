@@ -53,9 +53,7 @@ class FraudScorer:
         # Convert 0-1 composite to 0-100 for backward compat in DB
         legacy_score = min(scoring_context.composite_score * 100, 100)
         risk_factors = [
-            r.risk_factor.value
-            for r in scoring_context.triggered_rules
-            if r.risk_factor
+            r.risk_factor.value for r in scoring_context.triggered_rules if r.risk_factor
         ]
 
         score_row = FraudScoreDB(

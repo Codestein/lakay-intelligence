@@ -67,6 +67,7 @@ class TransactionFeatures(BaseModel):
 
 class ScoringContext(BaseModel):
     """Enhanced scoring output with weighted category aggregation."""
+
     composite_score: float = Field(ge=0.0, le=1.0)
     risk_tier: RiskTier
     triggered_rules: list[RuleResult] = []

@@ -71,11 +71,13 @@ async def list_rules() -> dict:
     config = default_config
     rules_info = []
     for rule in ALL_RULES:
-        rules_info.append({
-            "rule_id": rule.rule_id,
-            "category": rule.category,
-            "default_weight": rule.default_weight,
-        })
+        rules_info.append(
+            {
+                "rule_id": rule.rule_id,
+                "category": rule.category,
+                "default_weight": rule.default_weight,
+            }
+        )
 
     return {
         "model_version": "rules-v2",

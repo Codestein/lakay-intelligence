@@ -72,12 +72,14 @@ class RulesEngine:
                 results.append(result)
             except Exception:
                 logger.exception("rule_evaluation_error", rule_id=rule.rule_id)
-                results.append(RuleResult(
-                    rule_name=rule.rule_id,
-                    triggered=False,
-                    details="Rule evaluation failed",
-                    category=rule.category,
-                ))
+                results.append(
+                    RuleResult(
+                        rule_name=rule.rule_id,
+                        triggered=False,
+                        details="Rule evaluation failed",
+                        category=rule.category,
+                    )
+                )
 
         # Aggregate triggered rules
         triggered = [r for r in results if r.triggered]
@@ -101,10 +103,7 @@ class RulesEngine:
             cap = category_caps.get(cat, 0.25)
             # Find the matching rule weights
             rule_weights = {rule.rule_id: rule.default_weight for rule in self._rules}
-            weighted_sum = sum(
-                r.score * rule_weights.get(r.rule_name, 0.10)
-                for r in cat_results
-            )
+            weighted_sum = sum(r.score * rule_weights.get(r.rule_name, 0.10) for r in cat_results)
             category_scores[cat] = min(weighted_sum, cap)
 
         # Composite score: sum of category scores, capped at 1.0

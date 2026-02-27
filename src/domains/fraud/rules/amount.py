@@ -72,6 +72,7 @@ class CumulativeAmountRule(FraudRule):
         now = request.initiated_at
         if not now:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC)
 
         amount_expr = RawEvent.payload["payload"]["amount"].astext.cast(Float)
@@ -90,9 +91,7 @@ class CumulativeAmountRule(FraudRule):
         max_score = 0.0
 
         for window_name, (start, limit) in windows.items():
-            stmt = select(
-                func.coalesce(func.sum(amount_expr), 0)
-            ).where(
+            stmt = select(func.coalesce(func.sum(amount_expr), 0)).where(
                 *base_filter,
                 RawEvent.received_at >= start,
                 RawEvent.received_at < now,

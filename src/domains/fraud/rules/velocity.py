@@ -131,6 +131,7 @@ class LoginVelocityRule(FraudRule):
         now = request.initiated_at
         if not now:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC)
 
         start = now - timedelta(minutes=window_minutes)
@@ -180,6 +181,7 @@ class CircleJoinVelocityRule(FraudRule):
         now = request.initiated_at
         if not now:
             from datetime import UTC, datetime
+
             now = datetime.now(UTC)
 
         start = now - timedelta(hours=window_hours)
