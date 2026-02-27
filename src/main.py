@@ -18,6 +18,7 @@ from src.api.routes.compliance import router as compliance_router
 from src.api.routes.compliance_reports import router as compliance_reports_router
 from src.api.routes.dashboards import router as dashboards_router
 from src.api.routes.experiments import router as experiments_router
+from src.api.routes.features import router as features_router
 from src.api.routes.fraud import router as fraud_router
 from src.api.routes.health import router as health_router
 from src.api.routes.pipeline import router as pipeline_router
@@ -128,6 +129,7 @@ app.include_router(pipeline_router)
 app.include_router(experiments_router)
 app.include_router(dashboards_router)
 app.include_router(compliance_reports_router)
+app.include_router(features_router)
 
 
 def get_uptime() -> int:

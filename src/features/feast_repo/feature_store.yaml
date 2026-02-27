@@ -1,0 +1,15 @@
+project: lakay_intelligence
+registry: data/registry.db
+provider: local
+offline_store:
+  type: postgres
+  host: postgres
+  port: 5432
+  database: lakay
+  db_schema: feast
+  user: lakay
+  password: lakay_dev
+online_store:
+  type: redis
+  connection_string: redis:6379
+entity_key_serialization_version: 2
