@@ -60,7 +60,7 @@ class TestHealthEndpoints:
                 assert response.status_code == 200
                 data = response.json()
                 assert "score" in data
-                assert data["model_version"] == "rules-v1"
+                assert data["model_version"] == "rules-v2"
         finally:
             app.dependency_overrides.clear()
 
