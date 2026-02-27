@@ -135,6 +135,7 @@ class TestScenarioS2SlowStructuring:
         detections = detect_slow_structuring("user-s2", transactions)
         assert len(detections) >= 1
         assert detections[0].typology == StructuringTypology.SLOW
+        assert detections[0].confidence > 0.7
         assert detections[0].amount_total == 13_500.0
 
     def test_slow_structuring_generates_sar_recommendation(self):
@@ -201,7 +202,7 @@ class TestScenarioS3FanOutStructuring:
         detections = detect_fan_out_structuring("user-s3", transactions)
         assert len(detections) >= 1
         assert detections[0].typology == StructuringTypology.FAN_OUT
-        assert detections[0].confidence > 0.4
+        assert detections[0].confidence > 0.6
         assert detections[0].amount_total == 12_800.0
 
     def test_fan_out_below_min_recipients_no_detection(self):
@@ -245,7 +246,7 @@ class TestScenarioS4FunnelStructuring:
         detections = detect_funnel_structuring("recipient-haiti", transactions)
         assert len(detections) >= 1
         assert detections[0].typology == StructuringTypology.FUNNEL
-        assert detections[0].confidence > 0.3
+        assert detections[0].confidence > 0.5
         assert detections[0].amount_total == 12_000.0
 
     def test_funnel_below_min_senders_no_detection(self):

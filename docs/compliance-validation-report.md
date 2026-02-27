@@ -39,10 +39,10 @@ framework. All core requirements have been implemented and verified:
 
 | ID | Scenario | Expected Outcome | Result | Typology | Confidence |
 |----|----------|-----------------|--------|----------|------------|
-| S-1 | 5 × $1,900 in one day ($9,500) | Structuring detected (micro) | **PASS** | micro | > 0.3 |
-| S-2 | $4,500/week for 3 weeks ($13,500) | Structuring detected (slow), SAR recommended | **PASS** | slow | elevated |
-| S-3 | $3,200 to 4 recipients ($12,800) | Structuring detected (fan_out) | **PASS** | fan_out | > 0.4 |
-| S-4 | 4 senders × $3,000 to one recipient ($12,000) | Structuring detected (funnel) | **PASS** | funnel | > 0.3 |
+| S-1 | 5 × $1,900 in one day ($9,500) | Structuring detected (micro) | **PASS** | micro | > 0.5 |
+| S-2 | $4,500/week for 3 weeks ($13,500) | Structuring detected (slow), SAR recommended | **PASS** | slow | > 0.7 |
+| S-3 | $3,200 to 4 recipients ($12,800) | Structuring detected (fan_out) | **PASS** | fan_out | > 0.6 |
+| S-4 | 4 senders × $3,000 to one recipient ($12,000) | Structuring detected (funnel) | **PASS** | funnel | > 0.5 |
 | S-5 | $500/week for 26 weeks (diaspora remittance) | **No** structuring flag | **PASS** | — | — |
 
 **Notes:**

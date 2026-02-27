@@ -181,13 +181,13 @@ class TestStructuringScenarios:
 
         micro_detections = [d for d in detections if d.typology == StructuringTypology.MICRO]
         assert len(micro_detections) >= 1
-        assert micro_detections[0].confidence > 0.3
+        assert micro_detections[0].confidence > 0.5
         assert len(alerts) >= 1
 
     def test_s2_slow_structuring(self, detector):
         """S-2: User sends $4,500 every Monday for 3 weeks ($13,500 total).
 
-        Expected: structuring detected (slow), confidence elevated, SAR recommended.
+        Expected: structuring detected (slow), confidence > 0.7, SAR recommended.
         """
         now = datetime.now(UTC)
         txns = [
@@ -204,6 +204,7 @@ class TestStructuringScenarios:
 
         slow_detections = [d for d in detections if d.typology == StructuringTypology.SLOW]
         assert len(slow_detections) >= 1
+        assert slow_detections[0].confidence > 0.7
         assert slow_detections[0].amount_total == 13_500.0
 
     def test_s3_fan_out(self, detector):
@@ -228,6 +229,7 @@ class TestStructuringScenarios:
 
         fan_out = [d for d in detections if d.typology == StructuringTypology.FAN_OUT]
         assert len(fan_out) >= 1
+        assert fan_out[0].confidence > 0.6
         assert fan_out[0].amount_total == 12_800.0
 
     def test_s4_funnel(self, detector):
@@ -252,6 +254,7 @@ class TestStructuringScenarios:
 
         funnel = [d for d in detections if d.typology == StructuringTypology.FUNNEL]
         assert len(funnel) >= 1
+        assert funnel[0].confidence > 0.5
         assert funnel[0].amount_total == 12_000.0
 
     def test_s5_legitimate_pattern(self, detector):
