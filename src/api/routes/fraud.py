@@ -1,4 +1,4 @@
-"""Fraud detection endpoints."""
+"""Fraud detection endpoints with hybrid rules + ML scoring."""
 
 from datetime import UTC, datetime
 
@@ -14,11 +14,44 @@ from src.domains.fraud.config import default_config
 from src.domains.fraud.models import FraudScoreRequest
 from src.domains.fraud.rules import ALL_RULES
 from src.domains.fraud.scorer import FraudScorer
+from src.serving.config import default_serving_config
+from src.serving.monitoring import get_model_monitor
+from src.serving.server import get_model_server
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/fraud", tags=["fraud"])
 
 _scorer = FraudScorer()
+
+
+def _compute_hybrid_score(
+    rule_score: float,
+    ml_score: float | None,
+) -> tuple[float, str]:
+    """Combine rule-based and ML scores using the configured strategy.
+
+    Returns (hybrid_score, model_version_string).
+
+    Strategy (from serving config):
+    - 'weighted_average': w_rules * rule + w_ml * ml
+    - 'max': max(rule, ml)
+    - 'ensemble_vote': both must agree
+    """
+    config = default_serving_config.hybrid
+
+    if not config.ml_enabled or ml_score is None:
+        return rule_score, "rules-v2"
+
+    strategy = config.strategy
+    if strategy == "weighted_average":
+        hybrid = config.rule_weight * rule_score + config.ml_weight * ml_score
+    elif strategy == "max":
+        hybrid = max(rule_score, ml_score)
+    else:
+        # ensemble_vote: average when both flag, otherwise take the higher
+        hybrid = (rule_score + ml_score) / 2
+
+    return min(hybrid, 1.0), "hybrid-v1"
 
 
 @router.post("/score")
@@ -47,11 +80,71 @@ async def score_fraud(
 
     scoring_result = await _scorer.score_transaction(request, session)
     ctx = scoring_result.scoring_context
+    rule_score = ctx.composite_score if ctx else 0.0
 
-    return {
+    # Attempt ML scoring (graceful fallback if unavailable)
+    ml_score = None
+    ml_details = None
+    server = get_model_server()
+    if server.is_loaded:
+        try:
+            features_for_ml = {
+                "amount": request.amount_float,
+                "amount_zscore": 0.0,
+                "hour_of_day": (request.initiated_at.hour if request.initiated_at else 0),
+                "day_of_week": (request.initiated_at.weekday() if request.initiated_at else 0),
+                "tx_type_encoded": 0,
+                "balance_delta_sender": 0.0,
+                "balance_delta_receiver": 0.0,
+                "velocity_count_1h": (
+                    scoring_result.features_used.velocity_count_1h
+                    if scoring_result.features_used
+                    else 0
+                ),
+                "velocity_count_24h": (
+                    scoring_result.features_used.velocity_count_24h
+                    if scoring_result.features_used
+                    else 0
+                ),
+                "velocity_amount_1h": (
+                    scoring_result.features_used.velocity_amount_1h
+                    if scoring_result.features_used
+                    else 0.0
+                ),
+                "velocity_amount_24h": (
+                    scoring_result.features_used.velocity_amount_24h
+                    if scoring_result.features_used
+                    else 0.0
+                ),
+            }
+            prediction = server.predict(features_for_ml)
+            if prediction:
+                ml_score = prediction.score
+                ml_details = {
+                    "ml_score": prediction.score,
+                    "ml_model": prediction.model_name,
+                    "ml_version": prediction.model_version,
+                    "ml_latency_ms": prediction.prediction_latency_ms,
+                }
+                # Record for monitoring
+                monitor = get_model_monitor()
+                monitor.record_prediction(prediction.score, prediction.prediction_latency_ms)
+        except Exception:
+            logger.warning(
+                "ml_scoring_fallback",
+                transaction_id=request.transaction_id,
+                exc_info=True,
+            )
+
+    # Compute hybrid score
+    hybrid_score, model_version = _compute_hybrid_score(rule_score, ml_score)
+
+    response = {
         "transaction_id": request.transaction_id,
         "score": scoring_result.final_score,
-        "composite_score": ctx.composite_score if ctx else 0.0,
+        "composite_score": hybrid_score,
+        "rule_score": rule_score,
+        "ml_score": ml_score,
         "risk_tier": ctx.risk_tier.value if ctx else "low",
         "recommendation": ctx.recommendation if ctx else "allow",
         "confidence": ctx.scoring_metadata.get("confidence", 0.0) if ctx else 0.0,
@@ -60,9 +153,14 @@ async def score_fraud(
             for r in scoring_result.rule_results
             if r.triggered and r.risk_factor
         ],
-        "model_version": "rules-v2",
+        "model_version": model_version,
         "computed_at": datetime.now(UTC).isoformat(),
     }
+
+    if ml_details:
+        response["ml_details"] = ml_details
+
+    return response
 
 
 @router.get("/rules")

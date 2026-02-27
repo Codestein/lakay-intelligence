@@ -17,6 +17,7 @@ from src.api.routes.circles import router as circles_router
 from src.api.routes.compliance import router as compliance_router
 from src.api.routes.fraud import router as fraud_router
 from src.api.routes.health import router as health_router
+from src.api.routes.serving import router as serving_router
 from src.config import settings
 from src.shared.logging import setup_logging
 
@@ -110,6 +111,7 @@ app.include_router(fraud_router)
 app.include_router(circles_router)
 app.include_router(behavior_router)
 app.include_router(compliance_router)
+app.include_router(serving_router)
 
 
 def get_uptime() -> int:
