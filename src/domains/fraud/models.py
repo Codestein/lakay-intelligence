@@ -18,6 +18,23 @@ class RiskFactor(StrEnum):
     NEW_GEOLOCATION = "new_geolocation"
     IMPOSSIBLE_TRAVEL = "impossible_travel"
     UNUSUAL_HOUR = "unusual_hour"
+    # Phase 3 additions
+    LOGIN_VELOCITY = "login_velocity"
+    CIRCLE_JOIN_VELOCITY = "circle_join_velocity"
+    CUMULATIVE_AMOUNT = "cumulative_amount"
+    DEVIATION_FROM_BASELINE = "deviation_from_baseline"
+    CTR_PROXIMITY = "ctr_proximity"
+    DUPLICATE_TRANSACTION = "duplicate_transaction"
+    ROUND_AMOUNT_CLUSTERING = "round_amount_clustering"
+    TEMPORAL_STRUCTURING = "temporal_structuring"
+    THIRD_COUNTRY_SENDER = "third_country_sender"
+
+
+class RiskTier(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 
 class RuleResult(BaseModel):
@@ -26,6 +43,11 @@ class RuleResult(BaseModel):
     score: float = 0.0
     risk_factor: RiskFactor | None = None
     details: str = ""
+    # Phase 3 additions (defaults for backward compat)
+    severity: str = "low"
+    confidence: float = 0.0
+    evidence: dict = Field(default_factory=dict)
+    category: str = ""
 
 
 class TransactionFeatures(BaseModel):
@@ -43,10 +65,21 @@ class TransactionFeatures(BaseModel):
     stddev_amount_30d: float = 0.0
 
 
+class ScoringContext(BaseModel):
+    """Enhanced scoring output with weighted category aggregation."""
+    composite_score: float = Field(ge=0.0, le=1.0)
+    risk_tier: RiskTier
+    triggered_rules: list[RuleResult] = []
+    recommendation: str = "allow"  # allow / monitor / hold / block
+    scoring_metadata: dict = Field(default_factory=dict)
+
+
 class ScoringResult(BaseModel):
     final_score: float = Field(ge=0, le=100)
     rule_results: list[RuleResult] = []
     features_used: TransactionFeatures | None = None
+    # Phase 3: enhanced output
+    scoring_context: ScoringContext | None = None
 
 
 class FraudScoreRequest(BaseModel):
@@ -59,6 +92,7 @@ class FraudScoreRequest(BaseModel):
     geo_location: dict | None = None
     transaction_type: str | None = None
     initiated_at: datetime | None = None
+    recipient_id: str | None = None
 
     @property
     def amount_float(self) -> float:

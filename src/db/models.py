@@ -29,7 +29,10 @@ class FraudScore(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     transaction_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
     risk_score: Mapped[float] = mapped_column(Float)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    risk_tier: Mapped[str | None] = mapped_column(String, nullable=True)
     rules_triggered: Mapped[dict] = mapped_column(JSONB, default=dict)
     model_version: Mapped[str] = mapped_column(String)
     scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

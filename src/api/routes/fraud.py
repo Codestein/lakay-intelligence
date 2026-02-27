@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.database import get_session
 from src.db.models import Alert as AlertDB
 from src.db.models import FraudScore as FraudScoreDB
+from src.domains.fraud.config import default_config
 from src.domains.fraud.models import FraudScoreRequest
+from src.domains.fraud.rules import ALL_RULES
 from src.domains.fraud.scorer import FraudScorer
 
 logger = structlog.get_logger()
@@ -30,28 +32,65 @@ async def score_fraud(
     existing = result.scalar_one_or_none()
 
     if existing:
+        scoring_ctx = existing.rules_triggered.get("scoring_context", {})
         return {
             "transaction_id": existing.transaction_id,
             "score": existing.risk_score,
-            "confidence": min(len(existing.rules_triggered.get("risk_factors", [])) / 5, 1.0),
+            "composite_score": scoring_ctx.get("composite_score", existing.risk_score / 100),
+            "risk_tier": getattr(existing, "risk_tier", scoring_ctx.get("risk_tier", "low")),
+            "recommendation": scoring_ctx.get("recommendation", "allow"),
+            "confidence": getattr(existing, "confidence", 0.0),
             "risk_factors": existing.rules_triggered.get("risk_factors", []),
             "model_version": existing.model_version,
             "computed_at": existing.scored_at.isoformat(),
         }
 
     scoring_result = await _scorer.score_transaction(request, session)
+    ctx = scoring_result.scoring_context
 
     return {
         "transaction_id": request.transaction_id,
         "score": scoring_result.final_score,
-        "confidence": min(len([r for r in scoring_result.rule_results if r.triggered]) / 5, 1.0),
+        "composite_score": ctx.composite_score if ctx else 0.0,
+        "risk_tier": ctx.risk_tier.value if ctx else "low",
+        "recommendation": ctx.recommendation if ctx else "allow",
+        "confidence": ctx.scoring_metadata.get("confidence", 0.0) if ctx else 0.0,
         "risk_factors": [
             r.risk_factor.value
             for r in scoring_result.rule_results
             if r.triggered and r.risk_factor
         ],
-        "model_version": "rules-v1",
+        "model_version": "rules-v2",
         "computed_at": datetime.now(UTC).isoformat(),
+    }
+
+
+@router.get("/rules")
+async def list_rules() -> dict:
+    """Return current rule configurations, thresholds, weights, and model version."""
+    config = default_config
+    rules_info = []
+    for rule in ALL_RULES:
+        rules_info.append({
+            "rule_id": rule.rule_id,
+            "category": rule.category,
+            "default_weight": rule.default_weight,
+        })
+
+    return {
+        "model_version": "rules-v2",
+        "rule_count": len(ALL_RULES),
+        "rules": rules_info,
+        "category_caps": {
+            "velocity": config.scoring.velocity_cap,
+            "amount": config.scoring.amount_cap,
+            "geo": config.scoring.geo_cap,
+            "patterns": config.scoring.patterns_cap,
+        },
+        "alert_thresholds": {
+            "high": config.alerts.high_threshold,
+            "critical": config.alerts.critical_threshold,
+        },
     }
 
 
@@ -62,6 +101,11 @@ async def list_alerts(
     offset: int = Query(default=0, ge=0),
     severity: str | None = None,
     status: str | None = None,
+    user_id: str | None = None,
+    risk_tier: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    sort_by: str = Query(default="created_at", pattern="^(created_at|severity)$"),
 ) -> dict:
     # Build query
     stmt = select(AlertDB)
@@ -73,13 +117,31 @@ async def list_alerts(
     if status:
         stmt = stmt.where(AlertDB.status == status)
         count_stmt = count_stmt.where(AlertDB.status == status)
+    if user_id:
+        stmt = stmt.where(AlertDB.user_id == user_id)
+        count_stmt = count_stmt.where(AlertDB.user_id == user_id)
+    if risk_tier:
+        stmt = stmt.where(AlertDB.details["risk_tier"].astext == risk_tier)
+        count_stmt = count_stmt.where(AlertDB.details["risk_tier"].astext == risk_tier)
+    if date_from:
+        stmt = stmt.where(AlertDB.created_at >= date_from)
+        count_stmt = count_stmt.where(AlertDB.created_at >= date_from)
+    if date_to:
+        stmt = stmt.where(AlertDB.created_at <= date_to)
+        count_stmt = count_stmt.where(AlertDB.created_at <= date_to)
 
     # Get total count
     total_result = await session.execute(count_stmt)
     total = total_result.scalar_one()
 
-    # Get paginated results
-    stmt = stmt.order_by(AlertDB.created_at.desc()).offset(offset).limit(limit)
+    # Sort
+    if sort_by == "severity":
+        stmt = stmt.order_by(AlertDB.severity.desc(), AlertDB.created_at.desc())
+    else:
+        stmt = stmt.order_by(AlertDB.created_at.desc())
+
+    # Paginate
+    stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)
     alerts = result.scalars().all()
 

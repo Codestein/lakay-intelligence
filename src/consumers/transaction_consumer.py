@@ -5,6 +5,7 @@ from typing import Any
 import structlog
 
 from src.db.database import async_session_factory
+from src.domains.fraud.config import FraudConfig
 from src.domains.fraud.models import FraudScoreRequest
 from src.domains.fraud.scorer import FraudScorer
 
@@ -21,13 +22,19 @@ TRANSACTION_EVENT_TYPES = [
 
 
 class TransactionConsumer(BaseConsumer):
-    def __init__(self, bootstrap_servers: str, group_id: str = "lakay-intelligence") -> None:
+    def __init__(
+        self,
+        bootstrap_servers: str,
+        group_id: str = "lakay-intelligence",
+        config: FraudConfig | None = None,
+        kafka_producer=None,
+    ) -> None:
         super().__init__(
             topics=["trebanx.transaction.events"],
             bootstrap_servers=bootstrap_servers,
             group_id=group_id,
         )
-        self._scorer = FraudScorer()
+        self._scorer = FraudScorer(config=config, kafka_producer=kafka_producer)
         for event_type in TRANSACTION_EVENT_TYPES:
             self.register_handler(event_type, self._handle_transaction_event)
 
@@ -57,13 +64,18 @@ class TransactionConsumer(BaseConsumer):
                 geo_location=payload.get("geo_location"),
                 transaction_type=payload.get("type"),
                 initiated_at=payload.get("initiated_at"),
+                recipient_id=payload.get("recipient_id"),
             )
             async with async_session_factory() as session:
                 result = await self._scorer.score_transaction(request, session)
+                ctx = result.scoring_context
                 logger.info(
                     "transaction_scored_via_consumer",
                     transaction_id=request.transaction_id,
                     score=result.final_score,
+                    composite_score=ctx.composite_score if ctx else None,
+                    risk_tier=ctx.risk_tier.value if ctx else None,
+                    recommendation=ctx.recommendation if ctx else None,
                 )
         except Exception:
             logger.exception(
